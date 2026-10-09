@@ -225,15 +225,19 @@ async function ensureLoadingInfra(sql: postgres.Sql, ds: DatasetRow): Promise<vo
   const role = ds.role_name;
 
   await sql`CREATE SCHEMA IF NOT EXISTS ${sql(schema)}`;
-  await sql`
+  // bound params inside DO blocks break on the transaction pooler
+  // ("could not determine data type of parameter $1"); role names are
+  // system-generated identifiers, escaped defensively here.
+  const roleLit = `'${role.replaceAll("'", "''")}'`;
+  await sql.unsafe(`
     DO $$
     BEGIN
-      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = ${role}) THEN
-        EXECUTE format('CREATE ROLE %I NOLOGIN', ${role});
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = ${roleLit}) THEN
+        EXECUTE format('CREATE ROLE %I NOLOGIN', ${roleLit});
       END IF;
     END
     $$
-  `;
+  `);
   await sql`GRANT USAGE ON SCHEMA ${sql(schema)} TO ${sql(role)}`;
   await sql`GRANT ${sql(role)} TO qp_query`;
 
@@ -431,29 +435,36 @@ async function describingStep(sql: postgres.Sql, ds: DatasetRow): Promise<StepRe
     );
   }
 
-  const result = await describeTable({
-    tableName: table.table_name,
-    columns: columns.map((c) => ({
-      ordinal: c.ordinal,
-      columnName: c.column_name,
-      originalHeader: c.original_header ?? "",
-      dataType: c.data_type,
-      dateFormat: null,
-      isPercent: false,
-      isCandidateKey: false,
-      rowCount: 0,
-      nullCount: 0,
-      nullPct: c.null_pct ?? 0,
-      distinctCount: c.distinct_count ?? 0,
-      coercedCount: 0,
-      minValue: c.min_value,
-      maxValue: c.max_value,
-      topValues: c.top_values ?? [],
-      sampleValues: c.sample_values ?? [],
-      distinctValues: null,
-    })),
-    sampleRows,
-  });
+  // LLM failures (network, retries exhausted, bad JSON) must never fail the
+  // dataset — descriptions stay empty and ingestion completes (per spec).
+  let result: Awaited<ReturnType<typeof describeTable>> = null;
+  try {
+    result = await describeTable({
+      tableName: table.table_name,
+      columns: columns.map((c) => ({
+        ordinal: c.ordinal,
+        columnName: c.column_name,
+        originalHeader: c.original_header ?? "",
+        dataType: c.data_type,
+        dateFormat: null,
+        isPercent: false,
+        isCandidateKey: false,
+        rowCount: 0,
+        nullCount: 0,
+        nullPct: c.null_pct ?? 0,
+        distinctCount: c.distinct_count ?? 0,
+        coercedCount: 0,
+        minValue: c.min_value,
+        maxValue: c.max_value,
+        topValues: c.top_values ?? [],
+        sampleValues: c.sample_values ?? [],
+        distinctValues: null,
+      })),
+      sampleRows,
+    });
+  } catch {
+    result = null;
+  }
 
   await sql`
     UPDATE catalog_tables SET description = ${result?.table_description ?? ""}
