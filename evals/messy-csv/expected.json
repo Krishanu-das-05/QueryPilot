@@ -1,0 +1,61 @@
+{
+  "01-mixed-dates.csv": [
+    { "original": "Order Date", "name": "order_date", "type": "date" },
+    { "original": "Ship Date", "name": "ship_date", "type": "date" },
+    { "original": "Paid On", "name": "paid_on", "type": "date" },
+    { "original": "Created At", "name": "created_at", "type": "timestamp" }
+  ],
+  "02-currency-inr.csv": [
+    { "original": "Item", "name": "item", "type": "text" },
+    { "original": "Amount", "name": "amount", "type": "integer" },
+    { "original": "Unit Price", "name": "unit_price", "type": "decimal" }
+  ],
+  "03-negatives-parens.csv": [
+    { "original": "Account", "name": "account", "type": "text" },
+    { "original": "Balance", "name": "balance", "type": "integer" },
+    { "original": "Quantity", "name": "quantity", "type": "integer" }
+  ],
+  "04-percents.csv": [
+    { "original": "Campaign", "name": "campaign", "type": "text" },
+    { "original": "Discount", "name": "discount", "type": "decimal" },
+    { "original": "Note", "name": "note", "type": "text" }
+  ],
+  "05-null-tokens.csv": [
+    { "original": "Score", "name": "score", "type": "integer" },
+    { "original": "Comment", "name": "comment", "type": "text" }
+  ],
+  "06-headers-messy.csv": [
+    { "original": "Order ID", "name": "order_id", "type": "integer" },
+    { "original": "Customer Name", "name": "customer_name", "type": "text" },
+    { "original": "Customer Name", "name": "customer_name_2", "type": "text" },
+    { "original": "2024 Revenue", "name": "c_2024_revenue", "type": "integer" },
+    { "original": "order", "name": "order_col", "type": "text" },
+    { "original": "SELECT", "name": "select_col", "type": "text" },
+    { "original": "Sales ($)", "name": "sales", "type": "integer" }
+  ],
+  "07-mostly-numeric.csv": [
+    { "original": "sku", "name": "sku", "type": "text" },
+    { "original": "Score", "name": "score", "type": "integer" },
+    { "original": "Region", "name": "region", "type": "text" }
+  ],
+  "08-booleans.csv": [
+    { "original": "Active", "name": "active", "type": "boolean" },
+    { "original": "Verified", "name": "verified", "type": "boolean" },
+    { "original": "Flag", "name": "flag", "type": "boolean" },
+    { "original": "Notified", "name": "notified", "type": "boolean" }
+  ],
+  "09-customers.csv": [
+    { "original": "id", "name": "id", "type": "integer" },
+    { "original": "Name", "name": "name", "type": "text" },
+    { "original": "Email", "name": "email", "type": "text" },
+    { "original": "Signup Date", "name": "signup_date", "type": "date" },
+    { "original": "Lifetime Value", "name": "lifetime_value", "type": "decimal" }
+  ],
+  "10-orders.csv": [
+    { "original": "Order ID", "name": "order_id", "type": "integer" },
+    { "original": "Customer ID", "name": "customer_id", "type": "integer" },
+    { "original": "Amount", "name": "amount", "type": "integer" },
+    { "original": "Order Date", "name": "order_date", "type": "date" },
+    { "original": "Status", "name": "status", "type": "text" }
+  ]
+}

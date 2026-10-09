@@ -1,0 +1,4 @@
+Order ID,Customer Name,Customer Name,2024 Revenue,order,SELECT,Sales ($)
+1001,Acme Corp,Anita Rao,50000,A,pending,1200
+1002,Beta Ltd,Bipin Shah,75000,B,shipped,3400
+1003,Gamma Inc,Charu Iyer,25000,C,delivered,900

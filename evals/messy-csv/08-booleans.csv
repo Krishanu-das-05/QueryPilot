@@ -1,0 +1,9 @@
+Active,Verified,Flag,Notified
+yes,TRUE,y,1
+no,FALSE,n,0
+YES,True,Y,1
+no,false,N,0
+yes,TRUE,y,1
+yes,FALSE,y,0
+No,True,n,1
+yes,false,y,1
