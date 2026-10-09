@@ -1,7 +1,10 @@
-import { getDatasetCatalog } from "@/lib/catalog";
-import Description from "@/components/description";
-import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import Description from "@/components/description";
+import RelationshipGraph from "@/components/relationship-graph";
+import { getDatasetCatalog } from "@/lib/catalog";
 
 export const dynamic = "force-dynamic";
 
@@ -20,117 +23,210 @@ export default async function DatasetPage({
   if (!catalog) notFound();
   const { dataset, tables, columns, relationships, files } = catalog;
 
+  const totalRows = tables.reduce((acc, t) => acc + Number(t.row_count ?? 0), 0);
+
   return (
-    <div className="space-y-8">
-      <div>
-        <Link href="/" className="text-sm text-blue-600 underline">
-          ← all datasets
-        </Link>
-        <h1 className="mt-1 text-2xl font-bold">{String(dataset.name)}</h1>
-        <p className="text-sm text-gray-600">
-          status: <span className="font-medium">{String(dataset.status)}</span>
-          {dataset.error ? ` — ${String(dataset.error)}` : ""}
-        </p>
-        <p className="text-sm text-gray-600">
-          files: {files.map((f) => String(f.original_name)).join(", ")}
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold tracking-tight">{String(dataset.name)}</h1>
+          <Badge
+            variant={dataset.status === "ready" ? "success" : dataset.status === "failed" ? "destructive" : "warning"}
+          >
+            {String(dataset.status)}
+          </Badge>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {files.length} file{files.length === 1 ? "" : "s"} · {tables.length} table
+          {tables.length === 1 ? "" : "s"} · {totalRows} rows
+          {dataset.error ? ` · error: ${String(dataset.error)}` : ""}
         </p>
       </div>
 
-      {tables.map((t) => {
-        const cols = columns.filter((c) => c.table_id === t.id);
-        return (
-          <section key={String(t.id)} className="rounded border bg-white">
-            <div className="border-b px-4 py-3">
-              <h2 className="font-mono text-lg font-semibold">
-                {String(t.table_name)}
-              </h2>
-              <p className="text-sm text-gray-600">
-                {String(t.original_file)} — {String(t.row_count)} rows
-                {t.description_edited ? " (edited)" : ""}
-              </p>
-              <Description
-                initial={(t.description as string | null) ?? ""}
-                patch={{ datasetId: id, tableId: String(t.id) }}
-              />
-            </div>
-            <table className="w-full text-left text-sm">
-              <thead className="bg-gray-50 text-xs uppercase text-gray-500">
-                <tr>
-                  <th className="px-4 py-2">Column</th>
-                  <th className="px-4 py-2">Type</th>
-                  <th className="px-4 py-2">Original header</th>
-                  <th className="px-4 py-2">Null %</th>
-                  <th className="px-4 py-2">Distinct</th>
-                  <th className="px-4 py-2">Min – max / top values</th>
-                  <th className="px-4 py-2">Coerced</th>
-                  <th className="px-4 py-2">Description</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {cols.map((c) => (
-                  <tr key={String(c.id)} className="align-top">
-                    <td className="px-4 py-2 font-mono">
-                      {String(c.column_name)}
-                      {c.is_candidate_key ? (
-                        <span className="ml-1 rounded bg-blue-100 px-1 text-xs text-blue-800">
-                          key
-                        </span>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-2">
-                      {String(c.data_type)}
-                      {c.is_percent ? " (%)" : ""}
-                      {c.date_format ? (
-                        <span className="block text-xs text-gray-500">
-                          {String(c.date_format)}
-                        </span>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-2 text-gray-600">
-                      {String(c.original_header ?? "")}
-                    </td>
-                    <td className="px-4 py-2">{String(c.null_pct ?? 0)}</td>
-                    <td className="px-4 py-2">{String(c.distinct_count ?? "")}</td>
-                    <td className="max-w-xs px-4 py-2 text-gray-600">
-                      {c.min_value !== null
-                        ? `${String(c.min_value)} – ${String(c.max_value)}`
-                        : ((c.top_values as TopValue[] | null) ?? [])
-                            .slice(0, 5)
-                            .map((v) => `${v.value} (${v.count})`)
-                            .join(", ")}
-                    </td>
-                    <td className="px-4 py-2">{String(c.coerced_count ?? 0)}</td>
-                    <td className="max-w-sm px-4 py-2">
-                      <Description
-                        initial={(c.description as string | null) ?? ""}
-                        patch={{ datasetId: id, columnId: String(c.id) }}
-                        compact
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-        );
-      })}
+      <Tabs defaultValue="tables">
+        <TabsList>
+          <TabsTrigger value="tables">Tables</TabsTrigger>
+          <TabsTrigger value="relationships">
+            Relationships ({relationships.length})
+          </TabsTrigger>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+        </TabsList>
 
-      {relationships.length > 0 && (
-        <section>
-          <h2 className="mb-2 text-lg font-semibold">Detected relationships</h2>
-          <ul className="divide-y rounded border bg-white">
-            {relationships.map((r, i) => (
-              <li key={i} className="px-4 py-2 font-mono text-sm">
-                {String(r.from_table)}.{String(r.from_column)} →{" "}
-                {String(r.to_table)}.{String(r.to_column)}
-                <span className="ml-2 text-gray-500">
-                  overlap {Math.round(Number(r.overlap) * 100)}% ({String(r.method)})
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+        <TabsContent value="tables" className="space-y-6">
+          {tables.length === 0 && (
+            <Card>
+              <CardContent className="py-10 text-center text-muted-foreground">
+                {dataset.status === "ready"
+                  ? "No tables were found in this dataset."
+                  : "Ingestion has not produced a catalog yet."}
+              </CardContent>
+            </Card>
+          )}
+          {tables.map((t) => {
+            const cols = columns
+              .filter((c) => c.table_id === t.id)
+              .sort((a, b) => Number(a.ordinal) - Number(b.ordinal));
+            return (
+              <Card key={String(t.id)}>
+                <CardHeader>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <CardTitle className="font-mono">{String(t.table_name)}</CardTitle>
+                    <CardDescription>
+                      {String(t.original_file)} · {String(t.row_count)} rows
+                      {t.description_edited ? " · edited" : ""}
+                    </CardDescription>
+                  </div>
+                  <Description
+                    initial={(t.description as string | null) ?? ""}
+                    patch={{ datasetId: id, tableId: String(t.id) }}
+                  />
+                </CardHeader>
+                <CardContent className="px-0 pb-0">
+                  <table className="w-full text-left text-sm">
+                    <thead className="border-y text-xs uppercase tracking-wide text-muted-foreground">
+                      <tr>
+                        <th className="px-5 py-2 font-medium">Column</th>
+                        <th className="px-3 py-2 font-medium">Type</th>
+                        <th className="px-3 py-2 font-medium">Original</th>
+                        <th className="px-3 py-2 font-medium">Null %</th>
+                        <th className="px-3 py-2 font-medium">Distinct</th>
+                        <th className="px-3 py-2 font-medium">Range / top</th>
+                        <th className="px-3 py-2 font-medium">Coerced</th>
+                        <th className="px-5 py-2 font-medium">Description</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {cols.map((c) => (
+                        <tr key={String(c.id)} className="align-top">
+                          <td className="px-5 py-2.5 font-mono text-xs">
+                            <span className="text-sm">{String(c.column_name)}</span>
+                            {c.is_candidate_key ? (
+                              <Badge variant="default" className="ml-2">
+                                key
+                              </Badge>
+                            ) : null}
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <span>{String(c.data_type)}</span>
+                            {c.is_percent ? <span className="text-muted-foreground"> %</span> : null}
+                            {c.date_format ? (
+                              <span className="block text-xs text-muted-foreground">
+                                {String(c.date_format)}
+                              </span>
+                            ) : null}
+                          </td>
+                          <td className="px-3 py-2.5 text-muted-foreground">
+                            {String(c.original_header ?? "")}
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <NullBar pct={Number(c.null_pct ?? 0)} />
+                          </td>
+                          <td className="px-3 py-2.5">{String(c.distinct_count ?? "")}</td>
+                          <td className="max-w-[220px] truncate px-3 py-2.5 text-muted-foreground">
+                            {c.min_value !== null
+                              ? `${String(c.min_value)} – ${String(c.max_value)}`
+                              : ((c.top_values as TopValue[] | null) ?? [])
+                                  .slice(0, 4)
+                                  .map((v) => `${v.value} (${v.count})`)
+                                  .join(", ")}
+                          </td>
+                          <td className="px-3 py-2.5">
+                            {Number(c.coerced_count ?? 0) > 0 ? (
+                              <span className="text-warning">{String(c.coerced_count)}</span>
+                            ) : (
+                              <span className="text-muted-foreground">0</span>
+                            )}
+                          </td>
+                          <td className="max-w-[280px] px-5 py-2.5">
+                            <Description
+                              initial={(c.description as string | null) ?? ""}
+                              patch={{ datasetId: id, columnId: String(c.id) }}
+                              compact
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </TabsContent>
+
+        <TabsContent value="relationships">
+          {relationships.length === 0 ? (
+            <Card>
+              <CardContent className="py-10 text-center text-muted-foreground">
+                No relationships were detected between these tables.
+              </CardContent>
+            </Card>
+          ) : (
+            <RelationshipGraph
+              relationships={relationships.map((r) => ({
+                fromTable: String(r.from_table),
+                fromColumn: String(r.from_column),
+                toTable: String(r.to_table),
+                toColumn: String(r.to_column),
+                overlap: Number(r.overlap),
+                method: String(r.method),
+              }))}
+            />
+          )}
+        </TabsContent>
+
+        <TabsContent value="overview">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Files</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <table className="w-full text-left text-sm">
+                <thead className="border-b text-xs uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th className="py-2 font-medium">File</th>
+                    <th className="py-2 font-medium">Size</th>
+                    <th className="py-2 font-medium">Table</th>
+                    <th className="py-2 font-medium">Rows loaded</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {files.map((f) => (
+                    <tr key={String(f.id)}>
+                      <td className="py-2">{String(f.original_name)}</td>
+                      <td className="py-2 text-muted-foreground">
+                        {Math.round(Number(f.size_bytes ?? 0) / 1024)} KB
+                      </td>
+                      <td className="py-2 font-mono text-xs">{String(f.table_name ?? "")}</td>
+                      <td className="py-2">
+                        {String(f.rows_loaded ?? 0)} / {String(f.row_count ?? 0)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="mt-4 text-xs text-muted-foreground">
+                Created {new Date(String(dataset.created_at)).toLocaleString()} · expires{" "}
+                {new Date(String(dataset.expires_at)).toLocaleDateString()}
+              </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
+  );
+}
+
+function NullBar({ pct }: { pct: number }) {
+  return (
+    <span className="flex items-center gap-2">
+      <span className="h-1.5 w-12 overflow-hidden rounded-full bg-muted">
+        <span
+          className={`block h-full rounded-full ${pct > 25 ? "bg-warning" : "bg-success"}`}
+          style={{ width: `${Math.min(100, pct)}%` }}
+        />
+      </span>
+      <span className="text-xs text-muted-foreground">{pct}%</span>
+    </span>
   );
 }

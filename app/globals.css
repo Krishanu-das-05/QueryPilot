@@ -1,3 +1,63 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 10%;
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 46%;
+    --border: 240 6% 90%;
+    --input: 240 6% 90%;
+    --ring: 243 75% 59%;
+    --accent: 243 75% 59%;
+    --accent-foreground: 0 0% 100%;
+    --accent-soft: 243 90% 96%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 142 71% 45%;
+    --warning: 38 92% 50%;
+    --sidebar: 240 6% 98%;
+  }
+
+  .dark {
+    --background: 240 10% 6%;
+    --foreground: 240 5% 92%;
+    --card: 240 8% 9%;
+    --card-foreground: 240 5% 92%;
+    --muted: 240 6% 14%;
+    --muted-foreground: 240 5% 60%;
+    --border: 240 6% 16%;
+    --input: 240 6% 20%;
+    --ring: 243 75% 65%;
+    --accent: 243 75% 65%;
+    --accent-foreground: 240 10% 6%;
+    --accent-soft: 243 40% 18%;
+    --destructive: 0 63% 55%;
+    --destructive-foreground: 0 0% 98%;
+    --success: 142 60% 50%;
+    --warning: 38 92% 55%;
+    --sidebar: 240 9% 7.5%;
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+}
+
+@keyframes qp-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.qp-blink { animation: qp-pulse 1.6s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .qp-blink { animation: none; }
+}
