@@ -1,5 +1,8 @@
+import { MessagesSquare } from "lucide-react";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Description from "@/components/description";
@@ -35,6 +38,13 @@ export default async function DatasetPage({
           >
             {String(dataset.status)}
           </Badge>
+          {dataset.status === "ready" && (
+            <Button asChild className="ml-auto">
+              <Link href={`/datasets/${id}/chat`}>
+                <MessagesSquare /> Ask questions
+              </Link>
+            </Button>
+          )}
         </div>
         <p className="text-sm text-muted-foreground">
           {files.length} file{files.length === 1 ? "" : "s"} · {tables.length} table
