@@ -33,3 +33,28 @@
   `qp_query`. See `docs/adr/`.
 - RLS enabled on all public tables with no policies; server uses the admin
   connection only.
+
+## Python backend (`backend/`)
+
+Run these from `backend/` (the paths `app` and `tests` are relative to it):
+
+- Tests: `.venv/Scripts/python -m pytest -q`
+- Lint: `.venv/Scripts/python -m ruff check app tests`
+- Format check: `.venv/Scripts/python -m ruff format --check app tests`
+- Startup, manual only: `.venv/Scripts/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000`
+- `.env.local` is read only by the default app's lifespan startup, and only when no
+  explicit `Settings` were passed to `create_app`. Tests always pass explicit `Settings`.
+- asyncpg uses `statement_cache_size=0` (set in `app/db.py`) because the Supabase
+  transaction pooler requires it.
+- The Python API is incremental: TS routes stay active and the Next frontend is not
+  switched to Python until an explicit bridge is enabled.
+- Opt-in Postgres tests (`tests/test_integration.py`) are skipped unless
+  `TEST_DATABASE_URL` is set to a disposable database with `db/migrations` applied.
+- Migrations: from `backend/`, `.venv/Scripts/python -m app.migrate` applies all pending
+  `db/migrations/*.sql` files in filename order and records their ledger rows in
+  `public.schema_migrations`, in ONE transaction under an advisory lock. A failure rolls
+  back every pending file and ledger row. The `:QP_QUERY_PASSWORD`
+  placeholder is filled from `QP_QUERY_PASSWORD`, which is needed only when a pending file
+  uses it. The required env name is `DATABASE_URL_ADMIN`.
+- CI: the `integration` job applies migrations with the Python runner before it runs the
+  TypeScript integration test and the Python real-Postgres tests against the same database.
