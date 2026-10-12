@@ -20,6 +20,22 @@ function quoteIdent(name: string): string {
   return `"${name.replaceAll('"', '""')}"`;
 }
 
+const SAFE_ERROR_BY_SQLSTATE: Record<string, string> = {
+  "42P01": "unknown identifier",
+  "42703": "unknown identifier",
+  "42601": "syntax error",
+  "42501": "permission denied",
+  "57014": "query timed out",
+  "42804": "type mismatch",
+  "42883": "type mismatch",
+  "22P02": "type mismatch",
+};
+
+function safeDatabaseError(err: unknown): string {
+  const code = typeof err === "object" && err !== null && "code" in err ? err.code : undefined;
+  return (typeof code === "string" && SAFE_ERROR_BY_SQLSTATE[code]) || "query failed";
+}
+
 /** Stage 5/6: EXPLAIN (FORMAT JSON) in a READ ONLY, rolled-back transaction
  * as qp_query, with the session scoped to this dataset's role via
  * SET LOCAL ROLE (required after migration 0004 made grants INHERIT FALSE).
@@ -30,8 +46,8 @@ export async function explainAsQueryRole(
   sqlText: string,
 ): Promise<{ ok: boolean; error?: string; planRows?: number }> {
   const sql = getQueryDb();
+  let planRows: number | undefined;
   try {
-    let planRows: number | undefined;
     await sql.begin("read only", async (tx) => {
       await tx.unsafe(`SET LOCAL ROLE ${quoteIdent(roleName)}`);
       await tx.unsafe(`SET LOCAL statement_timeout = '5s'`);
@@ -48,8 +64,8 @@ export async function explainAsQueryRole(
     });
     return { ok: true, planRows };
   } catch (err) {
-    if (err instanceof ROLLBACK_SENTINEL) return { ok: true };
-    return { ok: false, error: (err as Error).message.slice(0, 200) };
+    if (err instanceof ROLLBACK_SENTINEL) return { ok: true, planRows };
+    return { ok: false, error: safeDatabaseError(err) };
   }
 }
 
@@ -82,7 +98,7 @@ export async function executeAsQueryRole(
       throw new ROLLBACK_SENTINEL();
     });
   } catch (err) {
-    if (!(err instanceof ROLLBACK_SENTINEL)) throw err;
+    if (!(err instanceof ROLLBACK_SENTINEL)) throw new Error(safeDatabaseError(err));
   }
   if (!payload) throw new Error("execution produced no result");
   return payload;

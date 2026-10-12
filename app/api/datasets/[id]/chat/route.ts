@@ -13,6 +13,7 @@ export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ id: string }> };
 
+const uuidSchema = z.string().uuid();
 const bodySchema = z.object({
   conversationId: z.string().uuid().optional(),
   message: z.string().min(1).max(2000),
@@ -27,6 +28,9 @@ export async function POST(req: NextRequest, { params }: Params) {
     return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 });
   }
   const { id: datasetId } = await params;
+  if (!uuidSchema.safeParse(datasetId).success) {
+    return new Response(JSON.stringify({ error: "invalid request" }), { status: 400 });
+  }
   const body = bodySchema.safeParse(await req.json().catch(() => null));
   if (!body.success) {
     return new Response(JSON.stringify({ error: "invalid request" }), { status: 400 });
@@ -45,6 +49,15 @@ export async function POST(req: NextRequest, { params }: Params) {
       JSON.stringify({ error: "dataset is not ready for questions yet" }),
       { status: 409 },
     );
+  }
+
+  if (body.data.conversationId) {
+    const owned = await sql<{ id: string }[]>`
+      SELECT id FROM conversations WHERE id = ${body.data.conversationId} AND dataset_id = ${datasetId}
+    `;
+    if (owned.length === 0) {
+      return new Response(JSON.stringify({ error: "not found" }), { status: 404 });
+    }
   }
 
   // daily cap: count user questions today for this dataset
@@ -148,11 +161,10 @@ export async function POST(req: NextRequest, { params }: Params) {
           truncated: final.result?.truncated ?? false,
         });
         send("done", { conversationId, elapsedMs: Date.now() - started });
-      } catch (err) {
+      } catch {
         send("error", {
           category: "internal",
-          message:
-            err instanceof Error ? err.message.slice(0, 200) : "something went wrong",
+          message: "Something went wrong. Please try again.",
         });
       } finally {
         controller.close();
