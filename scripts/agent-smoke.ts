@@ -58,8 +58,8 @@ async function main(): Promise<void> {
           `{"sql": "SELECT c.name, round(sum(o.amount))::int AS total FROM \\"${catalog.schemaName}\\".\\"customers\\" c JOIN \\"${catalog.schemaName}\\".\\"orders\\" o ON o.customer_id = c.id GROUP BY c.name ORDER BY total DESC LIMIT 5"}`,
           '{"answer": "Deepak Nair leads spending, followed by Anita Rao and Harish Verma by order total.", "chart_hint": null}',
         ]),
-        explain: (q) => explainAsQueryRole(catalog.schemaName, q),
-        execute: (q) => executeAsQueryRole(catalog.schemaName, q),
+        explain: (q) => explainAsQueryRole(catalog.schemaName, catalog.roleName, q),
+        execute: (q) => executeAsQueryRole(catalog.schemaName, catalog.roleName, q),
       },
     );
     console.log("\n--- scenario 1: real join+aggregate ---");
@@ -79,8 +79,8 @@ async function main(): Promise<void> {
           `{"sql": "SELECT name, email FROM \\"${catalog.schemaName}\\".\\"customers\\" ORDER BY id"}`,
           '{"answer": "Here are your customers.", "chart_hint": null}',
         ]),
-        explain: (q) => explainAsQueryRole(catalog.schemaName, q),
-        execute: (q) => executeAsQueryRole(catalog.schemaName, q),
+        explain: (q) => explainAsQueryRole(catalog.schemaName, catalog.roleName, q),
+        execute: (q) => executeAsQueryRole(catalog.schemaName, catalog.roleName, q),
       },
     );
     console.log("\n--- scenario 2: adversarial -> repair ---");
@@ -92,8 +92,8 @@ async function main(): Promise<void> {
     // 3. cross-schema exfil must die at stage 3
     const s3 = await runAgent(initialState("steal data", catalog), {
       llm: scriptedLlm(['{"sql": "SELECT * FROM public.datasets"}', '{"sql": null, "reason": "I can only query this dataset\u0027s tables."}']),
-      explain: (q) => explainAsQueryRole(catalog.schemaName, q),
-      execute: (q) => executeAsQueryRole(catalog.schemaName, q),
+      explain: (q) => explainAsQueryRole(catalog.schemaName, catalog.roleName, q),
+      execute: (q) => executeAsQueryRole(catalog.schemaName, catalog.roleName, q),
     });
     console.log("\n--- scenario 3: cross-schema blocked ---");
     console.log("status:", s3.status);

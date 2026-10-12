@@ -21,15 +21,19 @@ function quoteIdent(name: string): string {
 }
 
 /** Stage 5/6: EXPLAIN (FORMAT JSON) in a READ ONLY, rolled-back transaction
- * as qp_query. Zero data is read; parse + permission + cost info comes back. */
+ * as qp_query, with the session scoped to this dataset's role via
+ * SET LOCAL ROLE (required after migration 0004 made grants INHERIT FALSE).
+ * Zero data is read; parse + permission + cost info comes back. */
 export async function explainAsQueryRole(
   schemaName: string,
+  roleName: string,
   sqlText: string,
 ): Promise<{ ok: boolean; error?: string; planRows?: number }> {
   const sql = getQueryDb();
   try {
     let planRows: number | undefined;
     await sql.begin("read only", async (tx) => {
+      await tx.unsafe(`SET LOCAL ROLE ${quoteIdent(roleName)}`);
       await tx.unsafe(`SET LOCAL statement_timeout = '5s'`);
       await tx.unsafe(`SET LOCAL search_path = ${quoteIdent(schemaName)}`);
       const rows = await tx.unsafe<{ "QUERY PLAN": unknown }[]>(
@@ -52,9 +56,11 @@ export async function explainAsQueryRole(
 class ROLLBACK_SENTINEL extends Error {}
 
 /** Execute guarded SQL as qp_query in READ ONLY with a 5s timeout and a row
- * cap of ROW_LIMIT. `truncated` when the cap was hit. */
+ * cap of ROW_LIMIT, scoped to the dataset role via SET LOCAL ROLE.
+ * `truncated` when the cap was hit. */
 export async function executeAsQueryRole(
   schemaName: string,
+  roleName: string,
   sqlText: string,
 ): Promise<AgentResult> {
   const sql = getQueryDb();
@@ -62,6 +68,7 @@ export async function executeAsQueryRole(
   let payload: AgentResult | null = null;
   try {
     await sql.begin("read only", async (tx) => {
+      await tx.unsafe(`SET LOCAL ROLE ${quoteIdent(roleName)}`);
       await tx.unsafe(`SET LOCAL statement_timeout = '5s'`);
       await tx.unsafe(`SET LOCAL search_path = ${quoteIdent(schemaName)}`);
       const rows = await tx.unsafe<Record<string, unknown>[]>(sqlText);

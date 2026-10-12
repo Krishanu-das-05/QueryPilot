@@ -239,7 +239,8 @@ async function ensureLoadingInfra(sql: postgres.Sql, ds: DatasetRow): Promise<vo
     $$
   `);
   await sql`GRANT USAGE ON SCHEMA ${sql(schema)} TO ${sql(role)}`;
-  await sql`GRANT ${sql(role)} TO qp_query`;
+  // INHERIT FALSE: qp_query must SET ROLE to use this (see migration 0004)
+  await sql`GRANT ${sql(role)} TO qp_query WITH INHERIT FALSE, SET TRUE`;
 
   const tables = await sql<{ id: string; table_name: string }[]>`
     SELECT id, table_name FROM catalog_tables WHERE dataset_id = ${ds.id}

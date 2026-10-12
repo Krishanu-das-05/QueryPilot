@@ -3,6 +3,7 @@ import type { CatalogRelationship, CatalogTable } from "./state";
 
 export interface DatasetCatalog {
   schemaName: string;
+  roleName: string;
   name: string;
   tables: CatalogTable[];
   relationships: CatalogRelationship[];
@@ -14,11 +15,11 @@ export async function loadCatalog(
   sql: postgres.Sql,
   datasetId: string,
 ): Promise<DatasetCatalog | null> {
-  const datasets = await sql<{ schema_name: string; name: string }[]>`
-    SELECT schema_name, name FROM datasets WHERE id = ${datasetId}
+  const datasets = await sql<{ schema_name: string; role_name: string; name: string }[]>`
+    SELECT schema_name, role_name, name FROM datasets WHERE id = ${datasetId}
   `;
   const ds = datasets[0];
-  if (!ds?.schema_name) return null;
+  if (!ds?.schema_name || !ds.role_name) return null;
 
   const tableRows = await sql<
     { id: string; table_name: string; row_count: number | null; description: string | null }[]
@@ -76,6 +77,7 @@ export async function loadCatalog(
   `;
   return {
     schemaName: ds.schema_name,
+    roleName: ds.role_name,
     name: ds.name,
     tables,
     relationships: rels.map((r) => ({

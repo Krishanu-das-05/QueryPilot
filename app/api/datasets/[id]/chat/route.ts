@@ -93,8 +93,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       try {
         const deps = {
           llm: createOpenRouterLlm(),
-          explain: (q: string) => explainAsQueryRole(catalog.schemaName, q),
-          execute: (q: string) => executeAsQueryRole(catalog.schemaName, q),
+          explain: (q: string) => explainAsQueryRole(catalog.schemaName, catalog.roleName, q),
+          execute: (q: string) => executeAsQueryRole(catalog.schemaName, catalog.roleName, q),
           emit: (event: string, data: unknown) => {
             if (event === "sql" || event === "rows" || event === "trace") send(event, data);
           },
