@@ -12,7 +12,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from .api.datasets import router as datasets_router
 from .config import Settings, settings_from_startup
-from .db import create_admin_pool
+from .db import create_admin_pool, create_query_pool
 from .ingest.pipeline import DatasetNotFound, IngestBusy
 from .storage import StorageError, SupabaseStorage
 
@@ -72,19 +72,27 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings: Settings = app.state.settings
     client = httpx.AsyncClient(timeout=HTTP_TIMEOUT_SECONDS, follow_redirects=False)
     pool: asyncpg.Pool | None = None
+    query_pool: asyncpg.Pool | None = None
     try:
         if settings.database_url_admin:
             pool = await create_admin_pool(settings.database_url_admin)
+        if settings.database_url_query:
+            query_pool = await create_query_pool(settings.database_url_query)
         app.state.pool = pool
+        app.state.query_pool = query_pool
         app.state.http = client
         app.state.storage = _supabase_storage(settings, client)
         yield
     finally:
         try:
-            if pool is not None:
-                await pool.close()
+            if query_pool is not None:
+                await query_pool.close()
         finally:
-            await client.aclose()
+            try:
+                if pool is not None:
+                    await pool.close()
+            finally:
+                await client.aclose()
 
 
 def _register_handlers(app: FastAPI) -> None:
@@ -127,6 +135,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title="QueryPilot API", lifespan=_lifespan)
     app.state.settings = settings
     app.state.pool = None
+    app.state.query_pool = None
     app.state.http = None
     app.state.storage = None
     app.include_router(datasets_router, prefix="/api/datasets")

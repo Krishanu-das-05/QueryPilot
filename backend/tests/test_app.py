@@ -4,7 +4,7 @@ import logging
 
 import httpx
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
 from app import config as config_module
@@ -225,3 +225,55 @@ async def test_boundary_does_not_swallow_cancellation():
     with pytest.raises(asyncio.CancelledError):
         await boundary({"type": "http"}, None, send)
     assert sent == []
+
+
+class AdminOnlyPool:
+    def acquire(self):
+        raise AssertionError("the admin pool must never serve query-role requests")
+
+
+def test_query_dependency_is_safe_503_without_query_config_even_with_admin_present():
+    from app.db import get_query_pool
+
+    app = create_app(Settings(database_url_admin=fake_secret()))
+    app.state.pool = AdminOnlyPool()
+
+    @app.get("/probe-query")
+    async def probe(request: Request):
+        get_query_pool(request)
+        return {"ok": True}
+
+    response = TestClient(app, raise_server_exceptions=False).get("/probe-query")
+    assert response.status_code == 503
+    assert response.json() == {"error": "service unavailable"}
+
+
+async def test_lifespan_creates_and_closes_the_query_pool_when_configured(monkeypatch):
+    created = tracking_http_clients(monkeypatch)
+    admin = ClosingPool()
+    query = ClosingPool()
+
+    async def fake_admin(dsn: str) -> ClosingPool:
+        return admin
+
+    async def fake_query(dsn: str) -> ClosingPool:
+        return query
+
+    monkeypatch.setattr(main_module, "create_admin_pool", fake_admin)
+    monkeypatch.setattr(main_module, "create_query_pool", fake_query)
+    app = create_app(Settings(database_url_admin=fake_secret(), database_url_query=fake_secret()))
+    async with app.router.lifespan_context(app):
+        assert app.state.query_pool is query
+    assert admin.closed
+    assert query.closed
+    assert created[0].is_closed
+
+
+async def test_lifespan_skips_query_pool_without_query_config(monkeypatch):
+    async def forbidden(dsn: str):
+        raise AssertionError("no query pool without DATABASE_URL_QUERY")
+
+    monkeypatch.setattr(main_module, "create_query_pool", forbidden)
+    app = create_app(Settings(database_url_admin=None))
+    async with app.router.lifespan_context(app):
+        assert app.state.query_pool is None
