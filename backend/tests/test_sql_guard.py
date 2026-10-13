@@ -97,12 +97,27 @@ def test_read_only_requires_select_or_with_first():
     [
         "SELECT pg_read_file('x') FROM orders",
         "SELECT pg_catalog.pg_sleep(1) FROM orders",
-        "WITH d AS (DELETE FROM orders RETURNING id) SELECT id FROM d",
         "SELECT 1 FROM orders; UPDATE orders SET id = 1",
     ],
 )
 def test_dangerous_keywords_and_functions_are_blocked(sql):
     assert guard_read_only(sql).passed is False
+
+
+async def _must_not_explain(sql: str) -> ExplainResult:
+    raise AssertionError("explain must not run for an unsupported CTE source")
+
+
+async def test_data_modifying_cte_is_refused_at_stage_two_before_explain():
+    outcome = await guard_sql(
+        "WITH d AS (DELETE FROM orders RETURNING id) SELECT id FROM d",
+        schema_name="ds_a",
+        table_names=["orders"],
+        explain=_must_not_explain,
+    )
+    assert outcome.ok is False
+    assert outcome.report[-1].stage == "read-only"
+    assert outcome.report[-1].reason == "not-select:unsupported-with"
 
 
 def test_quoted_denylist_words_are_harmless_identifiers():

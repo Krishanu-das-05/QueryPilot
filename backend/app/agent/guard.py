@@ -4,45 +4,6 @@ from collections.abc import Awaitable, Callable, Sequence
 from .sql_text import SqlLexError, Token, tokenize
 from .state import ExplainResult, GuardOutcome, GuardStageResult
 
-DENYLIST = frozenset(
-    {
-        "insert",
-        "update",
-        "delete",
-        "merge",
-        "drop",
-        "alter",
-        "grant",
-        "revoke",
-        "copy",
-        "do",
-        "call",
-        "execute",
-        "truncate",
-        "create",
-        "comment",
-        "listen",
-        "notify",
-        "unlisten",
-        "pg_sleep",
-        "lo_export",
-        "lo_import",
-        "set",
-        "reset",
-        "lock",
-        "vacuum",
-        "reindex",
-        "cluster",
-        "refresh",
-        "prepare",
-        "deallocate",
-        "discard",
-        "savepoint",
-        "release",
-        "security_barrier",
-        "dblink",
-    }
-)
 DANGEROUS_FUNCTIONS = frozenset(
     {
         "set_config",
@@ -55,7 +16,7 @@ DANGEROUS_FUNCTIONS = frozenset(
         "pg_sleep_until",
     }
 )
-DANGEROUS_PREFIXES = ("dblink", "lo_", "pg_read_", "pg_ls_", "pg_stat_file")
+DANGEROUS_PREFIXES = ("dblink", "lo_", "pg_read_", "pg_ls_", "pg_stat_file", "pg_advisory_")
 BLOCKED_QUALIFIERS = frozenset({"pg_catalog", "information_schema", "pg_toast"})
 ROW_LIMIT = 1000
 COST_ROW_CAP = 200000
@@ -145,15 +106,24 @@ def guard_read_only(sql: str) -> GuardStageResult:
         return _fail("read-only", "lexical-error")
     if not tokens or not _is_word(tokens[0], "select", "with"):
         return _fail("read-only", "not-select")
+    statements = _statements(tokens)
+    if len(statements) != 1:
+        return _fail("read-only", f"stacked-statements:{len(statements)}")
+    if _is_word(tokens[0], "with"):
+        try:
+            flat, _ = _split_nested(statements[0])
+            _, start = _parse_ctes(flat)
+        except _Violation:
+            return _fail("read-only", "not-select:unsupported-with")
+        if start >= len(flat) or not _is_word(flat[start], "select"):
+            return _fail("read-only", "not-select:with-command")
     for index, token in enumerate(tokens):
-        if token.kind == "ident":
-            if token.value in DENYLIST or _is_dangerous_name(token.value):
-                return _fail("read-only", f"not-read-only:{token.value}")
-        elif token.kind == "qident":
-            lowered = token.value.lower()
-            called = index + 1 < len(tokens) and _is_punct(tokens[index + 1], "(")
-            if called and _is_dangerous_name(lowered):
-                return _fail("read-only", f"not-read-only:{lowered}")
+        if token.kind not in ("ident", "qident"):
+            continue
+        called = index + 1 < len(tokens) and _is_punct(tokens[index + 1], "(")
+        name = token.value.lower()
+        if called and _is_dangerous_name(name):
+            return _fail("read-only", f"not-read-only:{name}")
     return _pass("read-only")
 
 
