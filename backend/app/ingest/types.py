@@ -63,7 +63,11 @@ def infer_type(non_null_values: list[str]) -> InferredType:
     int_count = sum(1 for p in numbers if p is not None and p.is_integer)
     percent_count = sum(1 for p in numbers if p is not None and p.is_percent)
     if int_count / n >= TYPE_THRESHOLD:
-        return InferredType(type="integer", is_percent=False, date_format=None)
+        return InferredType(
+            type="integer",
+            is_percent=percent_count / num_count >= TYPE_THRESHOLD,
+            date_format=None,
+        )
     if num_count / n >= TYPE_THRESHOLD:
         return InferredType(
             type="decimal",

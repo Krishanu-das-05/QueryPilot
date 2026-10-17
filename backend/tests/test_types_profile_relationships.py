@@ -22,6 +22,20 @@ class TestInferType:
         r = infer_type(["12%", "8.5%", "20%"])
         assert r.type == "decimal" and r.is_percent
 
+    def test_whole_percent_ratios_retain_percent_metadata(self):
+        r = infer_type(["0%", "100%"])
+        assert r.type == "integer" and r.is_percent
+        assert coerce_value("0%", r.type, None).value == "0"
+        assert coerce_value("100%", r.type, None).value == "1"
+
+    def test_fractional_percent_ratios_stay_decimal(self):
+        r = infer_type(["0%", "50%", "100%"])
+        assert r.type == "decimal" and r.is_percent
+
+    def test_plain_integer_mix_does_not_get_percent_metadata(self):
+        r = infer_type(["10", "20", "100%"])
+        assert r.type == "integer" and not r.is_percent
+
     def test_dates(self):
         assert infer_type(["2024-01-15", "2024-02-20"]).date_format == "yyyy-mm-dd"
         assert infer_type(["20/01/2024", "05/02/2024"]).date_format == "dd/mm/yyyy"
