@@ -131,7 +131,7 @@ describe.skipIf(!URL)("integration: full ingest on real Postgres", () => {
     });
   });
 
-  it("grants SELECT to the dataset role and through it to qp_query", async () => {
+  it("grants SELECT to the dataset role; qp_query reads only via SET ROLE", async () => {
     const [roleCheck] = await sql<{ ok: boolean }[]>`
       SELECT has_table_privilege(${roleName},
         ${schemaName + ".orders"}, 'SELECT') AS ok
@@ -142,7 +142,7 @@ describe.skipIf(!URL)("integration: full ingest on real Postgres", () => {
       SELECT has_table_privilege('qp_query',
         ${schemaName + ".orders"}, 'SELECT') AS ok
     `;
-    expect(qpCheck!.ok).toBe(true);
+    expect(qpCheck!.ok).toBe(false);
 
     // qp_query itself authenticates and reads through the role
     const qpUrl = new globalThis.URL(URL as string);
@@ -150,9 +150,20 @@ describe.skipIf(!URL)("integration: full ingest on real Postgres", () => {
     qpUrl.password = process.env.QP_QUERY_PASSWORD ?? "integration-ci-password";
     const qpSql = postgres(qpUrl.toString(), { prepare: false, max: 1 });
     try {
-      const [row] = await qpSql<{ n: number }[]>`
+      const rejected = await qpSql`
         SELECT count(*)::int AS n FROM ${qpSql(schemaName)}.${qpSql("orders")}
-      `;
+      `.then(
+        () => null,
+        (err: { code?: string }) => err.code,
+      );
+      expect(rejected).toBe("42501");
+
+      const [row] = await qpSql.begin("read only", async (tx) => {
+        await tx.unsafe(`SET LOCAL ROLE "${roleName.replaceAll('"', '""')}"`);
+        return tx<{ n: number }[]>`
+          SELECT count(*)::int AS n FROM ${tx(schemaName)}.${tx("orders")}
+        `;
+      });
       expect(row!.n).toBe(16);
     } finally {
       await qpSql.end();

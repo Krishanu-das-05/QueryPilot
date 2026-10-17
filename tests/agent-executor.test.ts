@@ -124,6 +124,33 @@ describe("repairCategory", () => {
     expect(repairCategory("not-read-only:delete")).toBe("guardrail");
     expect(repairCategory("off-limits:public.datasets")).toBe("unknown-identifier");
   });
+
+  it("classifies explain-failed reasons by their specific cause", () => {
+    expect(repairCategory("explain-failed:query timed out")).toBe("timeout");
+    expect(repairCategory("explain-failed:type mismatch")).toBe("type-mismatch");
+    expect(repairCategory("explain-failed:permission denied")).toBe("permission");
+    expect(repairCategory("explain-failed:query failed")).toBe("syntax");
+  });
+});
+
+describe("agent error sanitization", () => {
+  it("never copies provider error text into state or trace", async () => {
+    const secret = "FAKE-KEY-FOR-TESTING";
+    const state = await runAgent(catalogState("anything"), {
+      llm: { chatJson: async () => { throw new Error(`auth failed for ${secret}`); } },
+      explain: async () => ({ ok: true, planRows: 1 }),
+      execute: async () => ({ columns: [], rows: [], truncated: false, elapsedMs: 1 }),
+    });
+    expect(state.status).toBe("failed");
+    expect(state.error).toBe("agent unavailable");
+    expect(state.trace.find((t) => t.note)?.note).toBe("error: agent unavailable");
+    expect(JSON.stringify(state)).not.toContain(secret);
+  });
+
+  it("maps database categories to repair categories", () => {
+    expect(repairCategory("unknown identifier")).toBe("unknown-identifier");
+    expect(repairCategory("query timed out")).toBe("timeout");
+  });
 });
 
 describe("runAgent", () => {

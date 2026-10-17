@@ -74,16 +74,24 @@ export type RepairCategory =
 
 export function repairCategory(reason: string): RepairCategory {
   const r = reason.toLowerCase();
-  if (r.includes("does not exist") || r.includes("column") || r.includes("off-limits")) {
+  if (
+    r.includes("does not exist") ||
+    r.includes("column") ||
+    r.includes("off-limits") ||
+    r.includes("unknown identifier")
+  ) {
     return "unknown-identifier";
   }
-  if (r.includes("syntax") || r.includes("explain-failed")) return "syntax";
+  if (r.includes("syntax")) return "syntax";
   if (r.includes("type") || r.includes("cast")) return "type-mismatch";
-  if (r.includes("timeout") || r.includes("canceling statement")) return "timeout";
+  if (r.includes("timeout") || r.includes("canceling statement") || r.includes("query timed out")) {
+    return "timeout";
+  }
   if (r.includes("permission") || r.includes("denied")) return "permission";
   if (r.includes("not-read-only") || r.includes("stacked") || r.includes("too-expensive") || r.includes("limit-exceeded")) {
     return "guardrail";
   }
+  if (r.includes("explain-failed")) return "syntax";
   return "syntax";
 }
 

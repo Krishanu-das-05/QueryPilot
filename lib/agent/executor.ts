@@ -40,18 +40,18 @@ export async function runAgent(
     try {
       next = await node(state, deps);
       state.trace.push({ node: current, ms: Date.now() - started });
-    } catch (err) {
+    } catch {
       // LLM or infra failure mid-run: degrade, don't 500
       state.trace.push({
         node: current,
         ms: Date.now() - started,
-        note: `error: ${err instanceof Error ? err.message.slice(0, 120) : "unknown"}`,
+        note: "error: agent unavailable",
       });
       if (!state.answer) {
         state.answer =
           "The model is unavailable right now, so I couldn't complete that. Please try again in a moment.";
         state.status = "failed";
-        state.error = err instanceof Error ? err.message.slice(0, 200) : "unknown";
+        state.error = "agent unavailable";
       }
       next = "done";
     }
