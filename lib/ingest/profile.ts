@@ -36,6 +36,17 @@ export interface TableProfile {
   rowCount: number;
 }
 
+function compareCodePoints(a: string, b: string): number {
+  const left = Array.from(a, (c) => c.codePointAt(0) ?? 0);
+  const right = Array.from(b, (c) => c.codePointAt(0) ?? 0);
+  const shared = Math.min(left.length, right.length);
+  for (let i = 0; i < shared; i += 1) {
+    const diff = (left[i] ?? 0) - (right[i] ?? 0);
+    if (diff !== 0) return diff;
+  }
+  return left.length - right.length;
+}
+
 /**
  * Profile one parsed table. `rows` are raw string cells (already decoded).
  * Pure function — unit-testable without a database.
@@ -100,7 +111,7 @@ export function profileTable(
       maxValue = sorted[sorted.length - 1] ?? null;
     } else if (inferred.type === "text") {
       topValues = [...counts.entries()]
-        .sort((a, b) => b[1].count - a[1].count || a[0].localeCompare(b[0]))
+        .sort((a, b) => b[1].count - a[1].count || compareCodePoints(a[0], b[0]))
         .slice(0, TOP_VALUES_LIMIT)
         .map(([value, { count }]) => ({ value, count }));
     }

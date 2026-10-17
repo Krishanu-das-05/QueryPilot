@@ -71,7 +71,11 @@ export function inferType(nonNullValues: string[]): InferredType {
     }
   }
   if (intCount / n >= TYPE_THRESHOLD) {
-    return { type: "integer", isPercent: false, dateFormat: null };
+    return {
+      type: "integer",
+      isPercent: percentCount / numCount >= TYPE_THRESHOLD,
+      dateFormat: null,
+    };
   }
   if (numCount / n >= TYPE_THRESHOLD) {
     return {
