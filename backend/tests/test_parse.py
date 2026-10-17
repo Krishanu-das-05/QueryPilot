@@ -1,9 +1,11 @@
+import csv
 import io
 from datetime import date, datetime
 
 import openpyxl
 import pytest
 
+from app.config import MAX_UPLOAD_BYTES
 from app.ingest.parse import parse_csv, parse_tabular_file, parse_xlsx
 
 
@@ -23,6 +25,22 @@ def make_xlsx() -> bytes:
 
 
 class TestCsv:
+    @pytest.mark.parametrize("quoted", [False, True])
+    def test_large_field_below_upload_limit_is_accepted(self, quoted):
+        value = b"x" * 131073
+        cell = b'"' + value + b'"' if quoted else value
+        content = b"value\n" + cell + b"\n"
+        assert len(content) < MAX_UPLOAD_BYTES
+        parsed = parse_csv(content)
+        assert parsed.headers == ["value"]
+        assert len(parsed.rows) == 1
+        assert len(parsed.rows[0][0]) == len(value)
+
+    def test_field_limit_stays_bounded_by_the_upload_limit(self):
+        content = b"value\n" + b"x" * (MAX_UPLOAD_BYTES + 1) + b"\n"
+        with pytest.raises(csv.Error):
+            parse_csv(content)
+
     def test_utf8(self):
         parsed = parse_csv(b"id,name\n1,Ana\n")
         assert parsed.headers == ["id", "name"]

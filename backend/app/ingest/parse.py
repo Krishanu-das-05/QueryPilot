@@ -9,6 +9,10 @@ from datetime import date, datetime
 
 import openpyxl
 
+from ..config import MAX_UPLOAD_BYTES
+
+csv.field_size_limit(MAX_UPLOAD_BYTES)
+
 
 @dataclass
 class ParsedFile:
