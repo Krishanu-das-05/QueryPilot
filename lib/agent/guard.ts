@@ -1,11 +1,11 @@
 import {
   containsKeyword,
-  extractRelations,
   findLimit,
   splitStatements,
   stripCommentsAndStrings,
   stripTrailingSemicolon,
 } from "./sql-text";
+import { extractTableReferences, RelationParseError } from "./relation-references";
 
 export const DENYLIST = [
   "insert", "update", "delete", "merge", "drop", "alter", "grant", "revoke",
@@ -70,13 +70,19 @@ export function guardTableAllowlist(
   sql: string,
   deps: { schemaName: string; tableNames: string[] },
 ): GuardStageResult {
-  const scrubbed = stripCommentsAndStrings(sql);
-  const allowed = new Set(deps.tableNames.map((t) => t.toLowerCase()));
-  for (const rel of extractRelations(scrubbed)) {
-    if (rel.schema !== null && rel.schema.toLowerCase() !== deps.schemaName.toLowerCase()) {
+  const allowed = new Set(deps.tableNames);
+  let relations;
+  try {
+    relations = extractTableReferences(sql);
+  } catch (error) {
+    if (!(error instanceof RelationParseError)) throw error;
+    return { stage: "table-allowlist", pass: false, reason: "unsupported-relation-syntax" };
+  }
+  for (const rel of relations) {
+    if (rel.schema !== null && rel.schema !== deps.schemaName) {
       return { stage: "table-allowlist", pass: false, reason: `off-limits:${rel.schema}.${rel.table}` };
     }
-    if (!allowed.has(rel.table.toLowerCase())) {
+    if (!allowed.has(rel.table)) {
       return { stage: "table-allowlist", pass: false, reason: `off-limits:${rel.table}` };
     }
   }

@@ -135,6 +135,16 @@ describe.skipIf(!TEST_URL)("production TypeScript database isolation", () => {
     ).rejects.toThrow("permission denied");
   });
 
+  it("returns exact PostgreSQL 42501 when the guard is bypassed under role A", async () => {
+    await expect(query!.begin("read only", async (tx) => {
+      await tx.unsafe(`SET LOCAL ROLE ${quoteIdent(a.role)}`);
+      await tx.unsafe(countSql(b.schema));
+    })).rejects.toMatchObject({
+      code: "42501",
+      message: `permission denied for schema ${b.schema}`,
+    });
+  });
+
   it("rejects the real comma-join before EXPLAIN rather than relying on DB denial", async () => {
     const sql = `SELECT a.id, b.id FROM ${quoteIdent(a.schema)}."records" a, ${quoteIdent(b.schema)}."records" b`;
     const explain = vi.fn((text: string) => explainAsQueryRole(a.schema, a.role, text));
