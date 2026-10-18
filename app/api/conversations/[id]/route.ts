@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminDb } from "@/lib/db";
 import { checkPassphrase } from "@/lib/guard";
+import { isVisibleDataset } from "@/lib/demo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,10 +22,10 @@ export async function GET(
   }
   const sql = getAdminDb();
   const owned = await sql`
-    SELECT c.id FROM conversations c JOIN datasets d ON d.id = c.dataset_id
+    SELECT c.id, d.id AS dataset_id, d.is_demo FROM conversations c JOIN datasets d ON d.id = c.dataset_id
     WHERE c.id = ${id}
   `;
-  if (owned.length === 0) {
+  if (owned.length === 0 || !isVisibleDataset({ id: owned[0]?.dataset_id, is_demo: owned[0]?.is_demo })) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
   const messages = await sql`

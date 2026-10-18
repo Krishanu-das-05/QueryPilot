@@ -7,6 +7,8 @@ import { createOpenRouterLlm } from "@/lib/agent/llm";
 import { AGENT_DAILY_CAP, type AgentState } from "@/lib/agent/state";
 import { getAdminDb } from "@/lib/db";
 import { checkPassphrase } from "@/lib/guard";
+import { isDemoDeployment, isVisibleDataset } from "@/lib/demo";
+import { reserveDemoQuestion } from "@/lib/demo-question";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,7 +26,8 @@ function sse(event: string, data: unknown): string {
 }
 
 export async function POST(req: NextRequest, { params }: Params) {
-  if (!checkPassphrase(req)) {
+  const demo = isDemoDeployment();
+  if (!demo && !checkPassphrase(req)) {
     return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 });
   }
   const { id: datasetId } = await params;
@@ -37,11 +40,11 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const sql = getAdminDb();
-  const datasets = await sql<{ status: string }[]>`
-    SELECT status FROM datasets WHERE id = ${datasetId}
+  const datasets = await sql<{ id: string; status: string; is_demo: boolean }[]>`
+    SELECT id, status, is_demo FROM datasets WHERE id = ${datasetId}
   `;
   const dataset = datasets[0];
-  if (!dataset) {
+  if (!dataset || !isVisibleDataset(dataset)) {
     return new Response(JSON.stringify({ error: "not found" }), { status: 404 });
   }
   if (dataset.status !== "ready") {
@@ -51,7 +54,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     );
   }
 
-  if (body.data.conversationId) {
+  if (!demo && body.data.conversationId) {
     const owned = await sql<{ id: string }[]>`
       SELECT id FROM conversations WHERE id = ${body.data.conversationId} AND dataset_id = ${datasetId}
     `;
@@ -61,18 +64,20 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   // daily cap: count user questions today for this dataset
-  const capRows = await sql<{ n: string }[]>`
-    SELECT count(*)::text AS n
-    FROM messages m
-    JOIN conversations c ON c.id = m.conversation_id
-    WHERE c.dataset_id = ${datasetId} AND m.role = 'user'
-      AND m.created_at > now() - interval '24 hours'
-  `;
-  if (Number(capRows[0]?.n ?? "0") >= AGENT_DAILY_CAP) {
-    return new Response(
-      JSON.stringify({ error: "daily question limit reached for this dataset" }),
-      { status: 429 },
-    );
+  if (!demo) {
+    const capRows = await sql<{ n: string }[]>`
+      SELECT count(*)::text AS n
+      FROM messages m
+      JOIN conversations c ON c.id = m.conversation_id
+      WHERE c.dataset_id = ${datasetId} AND m.role = 'user'
+        AND m.created_at > now() - interval '24 hours'
+    `;
+    if (Number(capRows[0]?.n ?? "0") >= AGENT_DAILY_CAP) {
+      return new Response(
+        JSON.stringify({ error: "daily question limit reached for this dataset" }),
+        { status: 429 },
+      );
+    }
   }
 
   const catalog = await loadCatalog(sql, datasetId);
@@ -82,18 +87,28 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   // conversation: create or validate
   let conversationId = body.data.conversationId ?? null;
-  if (!conversationId) {
-    const title = body.data.message.slice(0, 60);
-    const [c] = await sql<{ id: string }[]>`
-      INSERT INTO conversations (dataset_id, title) VALUES (${datasetId}, ${title})
-      RETURNING id
+  if (demo) {
+    const reservation = await reserveDemoQuestion(
+      sql, datasetId, body.data.message, body.data.conversationId,
+    );
+    if (!reservation.ok) {
+      return new Response(JSON.stringify({ error: reservation.error }), { status: reservation.status });
+    }
+    conversationId = reservation.conversationId;
+  } else {
+    if (!conversationId) {
+      const title = body.data.message.slice(0, 60);
+      const [c] = await sql<{ id: string }[]>`
+        INSERT INTO conversations (dataset_id, title) VALUES (${datasetId}, ${title})
+        RETURNING id
+      `;
+      conversationId = c!.id;
+    }
+    await sql`
+      INSERT INTO messages (conversation_id, role, content)
+      VALUES (${conversationId}, 'user', ${body.data.message})
     `;
-    conversationId = c!.id;
   }
-  await sql`
-    INSERT INTO messages (conversation_id, role, content)
-    VALUES (${conversationId}, 'user', ${body.data.message})
-  `;
 
   const encoder = new TextEncoder();
   const started = Date.now();

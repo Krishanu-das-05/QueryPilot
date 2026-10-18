@@ -4,6 +4,7 @@ import { getAdminDb } from "@/lib/db";
 import { UPLOAD_LIMITS } from "@/lib/env";
 import { checkPassphrase } from "@/lib/guard";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { DEMO_WRITE_ERROR, isDemoDeployment } from "@/lib/demo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,6 +17,9 @@ const schema = z.object({
 });
 
 export async function POST(req: NextRequest, { params }: Params) {
+  if (isDemoDeployment()) {
+    return NextResponse.json({ error: DEMO_WRITE_ERROR }, { status: 403 });
+  }
   if (!checkPassphrase(req)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
