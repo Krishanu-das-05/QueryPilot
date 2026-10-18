@@ -24,6 +24,25 @@ describe("inferType", () => {
     expect(r.isPercent).toBe(true);
   });
 
+  it("retains the percent flag for whole normalized ratios", () => {
+    const r = inferType(["0%", "100%"]);
+    expect(r).toEqual({ type: "integer", isPercent: true, dateFormat: null });
+    expect(coerceValue("0%", r.type, null).value).toBe("0");
+    expect(coerceValue("100%", r.type, null).value).toBe("1");
+  });
+
+  it("keeps fractional percent ratios decimal", () => {
+    expect(inferType(["0%", "50%", "100%"])).toEqual({
+      type: "decimal", isPercent: true, dateFormat: null,
+    });
+  });
+
+  it("does not flag mostly plain integer values as a percent column", () => {
+    expect(inferType(["10", "20", "100%"])).toEqual({
+      type: "integer", isPercent: false, dateFormat: null,
+    });
+  });
+
   it("detects dates with formats", () => {
     const r = inferType(["2024-01-15", "2024-02-20"]);
     expect(r.type).toBe("date");

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/db";
 import { checkPassphrase } from "@/lib/guard";
 import { runIngestStep } from "@/lib/ingest/pipeline";
+import { DEMO_WRITE_ERROR, isDemoDeployment } from "@/lib/demo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,6 +10,9 @@ export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ id: string }> };
 
 export async function POST(req: NextRequest, { params }: Params) {
+  if (isDemoDeployment()) {
+    return NextResponse.json({ error: DEMO_WRITE_ERROR }, { status: 403 });
+  }
   if (!checkPassphrase(req)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }

@@ -1,6 +1,10 @@
 "use client";
 
+import { KeyRound, Pencil } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/input";
 
 interface Props {
   initial: string;
@@ -12,11 +16,15 @@ export default function Description({ initial, patch, compact }: Props) {
   const [value, setValue] = useState(initial);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(initial);
-  const [message, setMessage] = useState("");
+  const [passphrase, setPassphrase] = useState("");
+  const [busy, setBusy] = useState(false);
 
   async function save() {
-    const passphrase = window.prompt("Upload passphrase (required to edit):");
-    if (passphrase === null) return;
+    if (!passphrase) {
+      toast.error("Enter the upload passphrase to save.");
+      return;
+    }
+    setBusy(true);
     const res = await fetch(`/api/datasets/${patch.datasetId}`, {
       method: "PATCH",
       headers: {
@@ -29,12 +37,13 @@ export default function Description({ initial, patch, compact }: Props) {
         description: draft,
       }),
     });
+    setBusy(false);
     if (res.ok) {
       setValue(draft);
       setEditing(false);
-      setMessage("");
+      toast.success("Description saved.");
     } else {
-      setMessage(res.status === 401 ? "Wrong passphrase." : "Save failed.");
+      toast.error(res.status === 401 ? "Wrong passphrase." : "Save failed.");
     }
   }
 
@@ -45,40 +54,49 @@ export default function Description({ initial, patch, compact }: Props) {
           setDraft(value);
           setEditing(true);
         }}
-        className={`text-left ${value ? "text-gray-800" : "italic text-gray-400"} hover:text-blue-700`}
+        className={`group inline-flex items-start gap-1.5 text-left text-sm ${
+          value ? "text-foreground" : "italic text-muted-foreground"
+        } hover:text-accent`}
         title="Click to edit"
       >
         {value || (compact ? "add description" : "No description yet — click to add one.")}
-        {message && <span className="ml-2 text-xs text-red-600">{message}</span>}
+        <Pencil className="mt-0.5 h-3 w-3 opacity-0 transition-opacity group-hover:opacity-60" />
       </button>
     );
   }
 
   return (
-    <span className="block">
-      <textarea
+    <span className="block space-y-2">
+      <Textarea
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         rows={compact ? 2 : 3}
-        className="w-full rounded border px-2 py-1 text-sm"
+        autoFocus
       />
-      <span className="mt-1 flex gap-2 text-sm">
-        <button
-          onClick={() => void save()}
-          className="rounded bg-blue-600 px-2 py-0.5 text-white hover:bg-blue-700"
-        >
+      <span className="flex flex-wrap items-center gap-2">
+        <span className="relative">
+          <KeyRound className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="password"
+            value={passphrase}
+            onChange={(e) => setPassphrase(e.target.value)}
+            placeholder="passphrase"
+            className="h-8 w-36 rounded-md border border-input bg-transparent pl-7 pr-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        </span>
+        <Button size="sm" onClick={() => void save()} disabled={busy}>
           Save
-        </button>
-        <button
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
           onClick={() => {
             setEditing(false);
             setDraft(value);
           }}
-          className="rounded border px-2 py-0.5"
         >
           Cancel
-        </button>
-        {message && <span className="text-red-600">{message}</span>}
+        </Button>
       </span>
     </span>
   );

@@ -103,7 +103,60 @@ function col(partial: Partial<ColumnProfile>): ColumnProfile {
   };
 }
 
+describe("parity rounding and tie ordering", () => {
+  it("rounds null_pct half-up (1 null in 32 -> 3.13)", () => {
+    const rows = [...Array.from({ length: 31 }, () => ["5"]), ["NA"]];
+    expect(profile(["v"], rows).columns[0]?.nullPct).toBe(3.13);
+  });
+
+  it("orders text ties by code point (not locale), count-desc first", () => {
+    const labels = ["A", "a", "z", "é", "中", "\uFFFF", "\u{10000}", "b", "c", "d", "e", "f"];
+    const values = [["red"], ["red"], ...labels.map((v) => [v])];
+    const top = profile(["label"], values).columns[0]?.topValues ?? [];
+    expect(top[0]).toEqual({ value: "red", count: 2 });
+    expect(top.map((t) => t.value)).toEqual([
+      "red", "A", "a", "b", "c", "d", "e", "f", "z", "é",
+    ]);
+  });
+
+  it("orders astral and BMP-high code points by code point", () => {
+    const top = profile(
+      ["label"],
+      [["\u{10000}"], ["\uFFFF"], ["中"]],
+    ).columns[0]?.topValues ?? [];
+    expect(top.map((t) => t.value)).toEqual(["中", "\uFFFF", "\u{10000}"]);
+  });
+});
+
 describe("detectRelationships", () => {
+  it("rounds overlap half-up (1801/2000 -> 0.901)", () => {
+    const customers = {
+      tableName: "customers",
+      columns: [
+        col({
+          columnName: "id",
+          dataType: "text",
+          isCandidateKey: true,
+          distinctCount: 1801,
+          distinctValues: Array.from({ length: 1801 }, (_, i) => `v${i}`),
+        }),
+      ],
+    };
+    const orders = {
+      tableName: "orders",
+      columns: [
+        col({
+          columnName: "customer_id",
+          dataType: "text",
+          distinctValues: Array.from({ length: 2000 }, (_, i) => `v${i}`),
+        }),
+      ],
+    };
+    const rels = detectRelationships([orders, customers]);
+    expect(rels).toHaveLength(1);
+    expect(rels[0]?.overlap).toBe(0.901);
+  });
+
   const customers = {
     tableName: "customers",
     columns: [
