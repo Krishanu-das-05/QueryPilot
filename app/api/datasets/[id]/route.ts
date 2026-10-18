@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getDatasetCatalog } from "@/lib/catalog";
 import { getAdminDb } from "@/lib/db";
 import { checkPassphrase } from "@/lib/guard";
+import { DEMO_WRITE_ERROR, isDemoDeployment } from "@/lib/demo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,6 +30,9 @@ const patchSchema = z
   });
 
 export async function PATCH(req: NextRequest, { params }: Params) {
+  if (isDemoDeployment()) {
+    return NextResponse.json({ error: DEMO_WRITE_ERROR }, { status: 403 });
+  }
   if (!checkPassphrase(req)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }

@@ -1,5 +1,6 @@
 import type postgres from "postgres";
 import { getAdminDb } from "./db";
+import { isVisibleDataset } from "./demo";
 
 export async function getDatasetCatalog(id: string, sql?: postgres.Sql) {
   const db = sql ?? getAdminDb();
@@ -8,7 +9,7 @@ export async function getDatasetCatalog(id: string, sql?: postgres.Sql) {
     FROM datasets WHERE id = ${id}
   `;
   const dataset = datasets[0] ?? null;
-  if (!dataset) return null;
+  if (!dataset || !isVisibleDataset(dataset)) return null;
 
   const files = await db`
     SELECT id, original_name, size_bytes, table_name, row_count, rows_loaded

@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getAdminDb } from "@/lib/db";
+import { isDemoDeployment, isVisibleDataset } from "@/lib/demo";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ interface Row {
   tables: number;
   rows_total: string;
   files: number;
+  is_demo: boolean;
 }
 
 const STATUS_META: Record<
@@ -31,14 +33,16 @@ const STATUS_META: Record<
 };
 
 export default async function Home() {
-  const datasets = await getAdminDb()<Row[]>`
-    SELECT d.id, d.name, d.status, d.created_at, d.expires_at,
+  const rows = await getAdminDb()<Row[]>`
+    SELECT d.id, d.name, d.status, d.created_at, d.expires_at, d.is_demo,
            (SELECT count(*) FROM catalog_tables t WHERE t.dataset_id = d.id)::int AS tables,
            (SELECT coalesce(sum(t.row_count), 0)::text FROM catalog_tables t WHERE t.dataset_id = d.id) AS rows_total,
            (SELECT count(*) FROM dataset_files f WHERE f.dataset_id = d.id)::int AS files
     FROM datasets d
     ORDER BY d.created_at DESC
   `;
+  const datasets = rows.filter(isVisibleDataset);
+  const demo = isDemoDeployment();
 
   return (
     <div className="space-y-10">
@@ -55,11 +59,11 @@ export default async function Home() {
           questions — with the query it ran, shown.
         </p>
         <div className="flex gap-3">
-          <Button asChild>
+          {!demo && <Button asChild>
             <Link href="/datasets/new">
               <FilePlus2 /> New dataset
             </Link>
-          </Button>
+          </Button>}
           {datasets.length > 0 && (
             <Button variant="outline" asChild>
               <Link href="#datasets">Browse datasets</Link>
@@ -77,9 +81,9 @@ export default async function Home() {
               <p className="text-muted-foreground">
                 No datasets yet — upload your first CSV or Excel file.
               </p>
-              <Button asChild>
+              {!demo && <Button asChild>
                 <Link href="/datasets/new">Upload files</Link>
-              </Button>
+              </Button>}
             </CardContent>
           </Card>
         ) : (

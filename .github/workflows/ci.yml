@@ -41,7 +41,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: integration tests (migrations + full ingest on real Postgres)
-        run: npx vitest run --no-file-parallelism tests/integration.test.ts tests/dataset-isolation.integration.test.ts
+        run: npx vitest run --no-file-parallelism tests/integration.test.ts tests/dataset-isolation.integration.test.ts tests/demo.integration.test.ts
         env:
           TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
           QP_QUERY_PASSWORD: integration-ci-password

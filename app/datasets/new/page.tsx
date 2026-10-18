@@ -1,8 +1,12 @@
 import NewDatasetClient from "@/components/new-dataset-client";
+import { isDemoDeployment } from "@/lib/demo";
 
 export const dynamic = "force-dynamic";
 
 export default function NewDatasetPage() {
+  if (isDemoDeployment()) {
+    return <p>Uploads are disabled. Browse the synthetic demo datasets from the home page.</p>;
+  }
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>

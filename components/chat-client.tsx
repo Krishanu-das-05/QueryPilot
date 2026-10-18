@@ -29,10 +29,12 @@ export default function ChatClient({
   datasetId,
   datasetName,
   tables,
+  demo = false,
 }: {
   datasetId: string;
   datasetName: string;
   tables: { table_name: string; description: string | null }[];
+  demo?: boolean;
 }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -149,7 +151,7 @@ export default function ChatClient({
             · {tables.map((t) => t.table_name).join(", ")}
           </p>
         </div>
-        <span className="relative">
+        {!demo && <span className="relative">
           <KeyRound className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <input
             type="password"
@@ -158,7 +160,7 @@ export default function ChatClient({
             placeholder="passphrase"
             className="h-8 w-40 rounded-md border border-input bg-transparent pl-7 pr-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
-        </span>
+        </span>}
       </div>
 
       <div className="flex-1 space-y-4 overflow-y-auto rounded-lg border bg-card p-4">
